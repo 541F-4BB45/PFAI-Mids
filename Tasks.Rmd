@@ -1,0 +1,121 @@
+---
+title: "Tasks"
+author: "Mohsin Pervaiz"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Importing the necessary libraries
+```{r}
+library(dplyr)
+library(ggplot2)
+library(caret)
+```
+
+## 1) Data manipulation with dplyr
+- The `mtcars` dataset.
+- A variable called `results` is instantiated to store the results of the following code.
+- The pipe operator `%>%` is used to connect and chain methods in dplyr. It chains the output of one function call into the input of another.
+- the mtcars dataset is first filtered for all of the rows that contain the mpg to be strictly greater than 20. This results in the return of a table with only the rows that have mpg greater than 20 in them.
+- This is then chained into the `arrange()` function which takes the ouptut of the filter function (a table whose rows consist of only the rows of the original dataset who have a value greater than 20 in their mpg column) and arranges it according to a specific critorion. In this case the `desc()` function is used to arrange the rows in order of the descending values of the mpg column.
+```{r}
+# Loading the mtcars dataset 
+data(mtcars)
+
+
+results <- mtcars %>% 
+  filter(mpg > 20) %>%
+  arrange(desc(mpg))
+
+print(results)
+```
+
+## Data visualization using ggplot2
+- The scatter plot created will be stored in the `scatter_plot` variable.
+- The `ggplot()` function creates a base plot object onto which multiple types of plots can be instantiated. The first argument is the data being used which in this case is the `mtcars` dataset. The second argument is the axes to plot as the `x` and `y` axes of the scatter-plot; These are specified using the `aes()` object which takes the axes as its keyword arguments. The `x` axis in this case is the `wt` (weight) feature and the `y` axis is the (miles per gallon) feature.
+- A scatter-plot is specified by the `geom_point` object. Its sole parameter is the color of the background which is specified to be blue.
+- A regression line is fit onto the data for visualization purposes through the use of the `geom_smooth()` object. Its parameters are: `method=''lm`, This specifies the type of regression line to be fit onto the data, in this case it is a "Linear Model" (lm). `se=FALSE`, if this is set to `TRUE` a shaded area around the regression line is added to signify some error boundaries of the fit. In this case it is false so no such shaded area is plotted. The `color='red'` parameter specifies the color of the regression line, which in this case is red.   
+- The `labs()` argument specifies the title of the graph, the title of the x-axis (what it represents), the title of the y-axis (What it means) and other explanatory visualizations.
+- The `plot()` method is called on the `scatter_plot` object to plot it in the markdown file.
+
+```{r}
+
+scatter_plot = ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(
+    title = "Relationship between Car Weight and MPG",
+    x = "Weight (1000 lbs)",
+    y = "Miles per Gallon"
+  )
+
+plot(scatter_plot)
+```
+
+## Statistical analysis with the "stats" package
+- The `hypothesized_mean` is set to 10. This is the mean that we have calculated from the sample of the actual population distribution.
+- The t-test is used to check if the hypothesized sample mean differs significantly from the actual population mean of the distribution.
+- An example vector is used to check if the calculated sample mean (the mean of the elements in the vector) differs significantly from the population mean `mean`.
+- The `t.test()` function performs this and outputs the results.
+- The same is done for the mtcars dataset. in this instance the mean calculated from the feature `mpg` of the mtcars dataset has its mean calculated and is then checked with the input population mean `mu` (10) to see if there is some other underlying effect present in the underlying population.
+- The outputs give the t-value calculated. This is then compared to a t-table to find if the t-value is a rare occurence. The `df` gives the degrees of freedom, which is a statistic used to calculate the p-values and distribution that the t-table is based upon. The p-value indicates the probability that there is some underlying effect in the population distribution, a higher p-value indicates a higher probability. The next is a 95% confidence interval and finally the calculated mean of the input vector.
+
+```{r}
+mean = 10
+example_vector = c(34, 1, 55, 2, 53, 94, 24, 52, 88)
+
+## Using an example numeric vector
+results_1 = t.test(example_vector, mu=mean)
+print(results_1)
+
+## Using the mpg feature in the mtcars dataset as the vector 
+results_2 = t.test(mtcars$mpg, mu=mean)
+print(results_2)
+```
+
+## Machine learning with caret
+- the `set.seed()` method sets a seed for reproducibility.
+- The `createDataPartition()` function takes in the target variable of the dataset and through stratified sampling returns the indices for the train and test sets. the `p=0.8` indicates the proportion of the train set, in this case, the train set is 80% of the original dataset while the test size would then be 20% percent. The parameter `list=FALSE` indicates that we only want one set of indices for out train indices; If `list=TRUE` then it would return multiple lists of train indices which we would use for resampling or training multiple models.
+- The `preProcess()` method takes in the indices of the columns to be pre-processed. `trainData[, -1]` is used to indicate that other than the first column (which is assumed to be the target variable feature), the other columns will be preprocessed. The methods used are given as a vector `c("center", "scale")`. 
+- The preProcessing is done using the predict method un-intuitively.
+- The `mpg` column is readded back because the preprocessing excluded the target variable column and so the returned data would not have this feature.
+```{r}
+# Set seed for reproducibility
+set.seed(123)
+
+# Split the data into training and testing sets (80% train, 20% test)
+trainIndex <- createDataPartition(mtcars$mpg, p = 0.8, list = FALSE)
+trainData <- mtcars[trainIndex, ]
+testData  <- mtcars[-trainIndex, ]
+
+# Preprocess: center and scale the predictors
+preProc <- preProcess(trainData[, -1], method = c("center", "scale"))
+
+# Apply preprocessing to both train and test sets
+trainTransformed <- predict(preProc, trainData[, -1])
+testTransformed  <- predict(preProc, testData[, -1])
+
+# Add the response variable back
+trainTransformed$mpg <- trainData$mpg
+testTransformed$mpg  <- testData$mpg
+
+# Train linear regression model using caret
+model <- train(
+  mpg ~ ., 
+  data = trainTransformed,
+  method = "lm"
+)
+
+# Predict on test set
+predictions <- predict(model, newdata = testTransformed)
+
+
+# Evaluate performance: RMSE
+rmse <- RMSE(predictions, testTransformed$mpg)
+cat("Test RMSE:", rmse, "\n")
+```
+
